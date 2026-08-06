@@ -15,3 +15,11 @@ def init_db():
                     ''')
     connection.commit()
     connection.close()
+
+def add_recipe(title: str, category: str, instructions: str=""):
+    connection = sqlite3.connect(DB_NAME)
+    cursor = connection.cursor()
+    cursor.execute('''INSERT INTO recipes (title, category, instructions) VALUES(?,?,?)''',
+                   (title,category,instructions))
+    connection.commit()
+    connection.close()
