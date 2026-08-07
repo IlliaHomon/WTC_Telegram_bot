@@ -6,7 +6,7 @@ def init_db():
     connection = sqlite3.connect(DB_NAME)
     cursor = connection.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS recipes (
-                        id INETEGER PRIMARY KEY AUTOINCREMENT,
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
                         title TEXT NOT NULL,
                         category TEXT NOT NULL,
                         instructions TEXT
