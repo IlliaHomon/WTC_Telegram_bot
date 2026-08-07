@@ -35,6 +35,16 @@ def search_recipes_by_title(keyword: str):
     connection.close()
     return matches
 
+def get_all_categories() -> list[str]:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT DISTINCT category FROM recipes ORDER BY category ASC')
+    categories = [row[0] for row in cursor.fetchall()]
+    
+    conn.close()
+    return categories
+
 
 def get_custom_meal_plan(mandatory_ids: list[int] = None,
     category_counts: dict[str, int] = None,
