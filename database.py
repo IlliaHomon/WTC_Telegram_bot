@@ -23,6 +23,22 @@ def add_recipe(title: str, category: str, instructions: str=""):
     connection.commit()
     connection.close()
 
+def delete_recipe(identifier: int|str) -> bool:
+    connection = sqlite3.connect(DB_NAME)
+    cursor = connection.cursor()
+    if isinstance(identifier, int):
+        cursor.execute('''DELETE FROM recipes WHERE id = ?''', [identifier])
+    elif isinstance(identifier, str):
+        if identifier.isdigit():
+            identifier=int(identifier)
+            cursor.execute('''DELETE FROM recipes WHERE id = ?''', [identifier])
+        else: cursor.execute('''DELETE FROM recipes WHERE LOWER(title) = LOWER(?)''', [identifier])
+    connection.commit()
+    deleted = cursor.rowcount>0
+    connection.close()
+
+    return deleted
+
 
 def search_recipes_by_title(keyword: str):
     connection = sqlite3.connect(DB_NAME)
