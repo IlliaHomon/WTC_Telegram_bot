@@ -22,6 +22,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 WAITING_FOR_RESPONSE = 0
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     database.init_db()
     welcome_text = (
@@ -40,13 +41,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
 
+#Two functions to add recipes
 async def add_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     bot_message = (
         "To add a recipe please send it using the following format:\n"
         "\n"
         "Title\n"
         "Recipe category (e.g Soup,Main,Salad etc.)\n"
-        "Instructions " 
+        "Instructions" 
     )
     await update.message.reply_text(bot_message)
     return 1
