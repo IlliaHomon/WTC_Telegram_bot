@@ -7,3 +7,6 @@ venv/
 # Ignore Python cache files
 __pycache__/
 *.pyc
+
+# No need to push te database
+recipes.db
