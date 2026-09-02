@@ -8,5 +8,5 @@ venv/
 __pycache__/
 *.pyc
 
-# No need to push te database
+# No need to push the database
 recipes.db

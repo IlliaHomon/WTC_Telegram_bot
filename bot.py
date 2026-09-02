@@ -36,12 +36,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /cancel - Cancel current multi-step action"
     )
     await update.message.reply_text(welcome_text)   
+    
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
 
+
 #Two functions to add recipes
+
 async def add_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     bot_message = (
         "To add a recipe please send it using the following format:\n"
@@ -90,8 +93,9 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
     lines = user_text.split('\n')
     for line in lines: line.strip()
     if len(lines)>0:
+        user_id = update.effective_user.id
         for title in lines: 
-            if database.delete_recipe(title):
+            if database.delete_recipe(title, user_id):
                 await update.message.reply_text(f"✅{title} deleted successfully!")
             else: 
                 await update.message.reply_text(f"❌ERROR {title} not deleted, check if there is a recipe with such name and try again")
@@ -103,10 +107,34 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         
 #-----------------------------------------------
 
+# Searching function
+
+async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not context.args:
+        await update.message.reply_text("❌ERROR Please provide a keyword, for example: /search pasta")
+        return
+    user_search = " ".join(context.args).strip()
+    results = database.search_recipes_by_title(user_search, user_id)
+    if not results:
+        await update.message.reply_text("❌ERROR No recipe found by that keyword")
+        return
+
+    formatted_reipes=[
+        f"--------------------\n{title}\n{category}\n\n{instructions}\n--------------------" for title,category,instructions in results
+    ]
+
+    answer = "\n\n" + "\n\n".join(formatted_reipes)
+    await update.message.reply_text(answer)
+
+
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("search", search))
 
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("add_recipe", add_recipe)],
@@ -131,5 +159,7 @@ def main():
     print("Bot is running...")
     app.run_polling()
 
+# For importing the file to other files without starting the bot
 if __name__ == "__main__":
+    database.init_db()
     main()
