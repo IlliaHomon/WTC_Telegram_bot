@@ -61,7 +61,8 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
         Title = lines[0].strip()
         Category = lines[1].strip()
         Instructions = "\n".join(lines[2:]).strip() if len(lines)>2 else ""
-        database.add_recipe(Title,Category,Instructions)
+        User_ID = update.effective_user.id
+        database.add_recipe(User_ID ,Title,Category,Instructions)
         await update.message.reply_text("✅Recipe added successfully!")
         return ConversationHandler.END
     else: 

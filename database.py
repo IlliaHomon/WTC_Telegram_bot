@@ -7,6 +7,7 @@ def init_db():
     cursor = connection.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS recipes (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
                         title TEXT NOT NULL,
                         category TEXT NOT NULL,
                         instructions TEXT
@@ -15,54 +16,53 @@ def init_db():
     connection.close()
 
 
-def add_recipe(title: str, category: str, instructions: str=""):
+def add_recipe(user_id: int, title: str, category: str, instructions: str=""):
     connection = sqlite3.connect(DB_NAME)
     cursor = connection.cursor()
-    cursor.execute('''INSERT INTO recipes (title, category, instructions) VALUES(?,?,?)''',
-                   (title,category,instructions))
+    cursor.execute('''INSERT INTO recipes (user_id, title, category, instructions) VALUES(?,?,?,?)''',
+                   (user_id,title,category,instructions))
     connection.commit()
     connection.close()
 
-def delete_recipe(identifier: int|str) -> bool:
+def delete_recipe(identifier: int|str, user_id: int) -> bool:
     connection = sqlite3.connect(DB_NAME)
     cursor = connection.cursor()
     if isinstance(identifier, int):
-        cursor.execute('''DELETE FROM recipes WHERE id = ?''', [identifier])
+        cursor.execute('''DELETE FROM recipes WHERE id = ? AND user_id = ?''', [identifier,user_id])
     elif isinstance(identifier, str):
         if identifier.isdigit():
             identifier=int(identifier)
-            cursor.execute('''DELETE FROM recipes WHERE id = ?''', [identifier])
-        else: cursor.execute('''DELETE FROM recipes WHERE LOWER(title) = LOWER(?)''', [identifier])
+            cursor.execute('''DELETE FROM recipes WHERE id = ? AND user_id = ?''', [identifier,user_id])
+        else: cursor.execute('''DELETE FROM recipes WHERE LOWER(title) = LOWER(?) AND user_id = ?''', [identifier,user_id])
     connection.commit()
     deleted = cursor.rowcount>0
     connection.close()
-
     return deleted
 
 
-def search_recipes_by_title(keyword: str):
+def search_recipes_by_title(keyword: str, user_id: int):
     connection = sqlite3.connect(DB_NAME)
     cursor = connection.cursor()
     
     cursor.execute('''SELECT id, title, category FROM recipes 
-        WHERE LOWER(title) LIKE LOWER(?)''', (f"%{keyword.strip()}%",))
+        WHERE LOWER(title) LIKE LOWER(?) AND user_id = ?''', [f"%{keyword.strip()}%",user_id])
     
     matches = cursor.fetchall()
     connection.close()
     return matches
 
-def get_all_categories() -> list[str]:
+def get_all_categories(user_id: int) -> list[str]:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    cursor.execute('SELECT DISTINCT category FROM recipes ORDER BY category ASC')
+    cursor.execute('SELECT DISTINCT category FROM recipes WHERE user_id = ? ORDER BY category ASC', [user_id])
     categories = [row[0] for row in cursor.fetchall()]
-    
+
     conn.close()
     return categories
 
 
-def get_custom_meal_plan(mandatory_ids: list[int] = None,
+def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
     category_counts: dict[str, int] = None,
     mandatory_categories: list[str] = None,
     total_count: int = 3):
@@ -89,8 +89,8 @@ def get_custom_meal_plan(mandatory_ids: list[int] = None,
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE id IN ({placeholders})
-        ''', mandatory_ids)
+            WHERE id IN ({placeholders}) AND user_id = ?
+        ''', mandatory_ids + [user_id]  )
         
         for recipe in cursor.fetchall():
             selected_recipes.append(recipe)
@@ -102,12 +102,12 @@ def get_custom_meal_plan(mandatory_ids: list[int] = None,
             continue
             
         exclude_sql = get_exclude_sql()
-        params = [category] + list(selected_ids) + [count]
+        params = [category] + list(selected_ids) + [user_id,count]
         
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE LOWER(category) = LOWER(?) {exclude_sql}
+            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND user_id = ?
             ORDER BY RANDOM() 
             LIMIT ?
         ''', params)
@@ -126,12 +126,12 @@ def get_custom_meal_plan(mandatory_ids: list[int] = None,
             continue
 
         exclude_sql = get_exclude_sql()
-        params = [cat] + list(selected_ids) + [1]
+        params = [cat] + list(selected_ids) + [user_id,1]
         
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE LOWER(category) = LOWER(?) {exclude_sql}
+            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND user_id = ?
             ORDER BY RANDOM() 
             LIMIT ?
         ''', params)
@@ -144,13 +144,18 @@ def get_custom_meal_plan(mandatory_ids: list[int] = None,
     #fill remaining slots with random recipes
     remaining_slots = total_count - len(selected_recipes)
     if remaining_slots > 0:
-        exclude_sql = f"WHERE id NOT IN ({','.join('?' for _ in selected_ids)})" if selected_ids else ""
-        params = list(selected_ids) + [remaining_slots] if selected_ids else [remaining_slots]
-        
+        if selected_ids:
+            placeholders = ','.join('?' for _ in selected_ids)
+            where_sql = f"WHERE id NOT IN ({placeholders}) AND user_id = ?"
+            params = list(selected_ids) + [user_id, remaining_slots]
+        else:
+            where_sql = "WHERE user_id = ?"
+            params = [user_id, remaining_slots]
+            
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            {exclude_sql}
+            {where_sql}
             ORDER BY RANDOM() 
             LIMIT ?
         ''', params)
