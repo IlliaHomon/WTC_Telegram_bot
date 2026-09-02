@@ -48,7 +48,8 @@ async def add_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
         "\n"
         "Title\n"
         "Recipe category (e.g Soup,Main,Salad etc.)\n"
-        "Instructions" 
+        "Instructions\n\n"
+        "/cancel to exit" 
     )
     await update.message.reply_text(bot_message)
     return 1
@@ -64,20 +65,63 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅Recipe added successfully!")
         return ConversationHandler.END
     else: 
-        await update.message.reply_text("❌ERROR Recipe not added, try again")
+        await update.message.reply_text("❌ERROR Recipe not added, check the format and try again")
         return 1
 
+#------------------------------------------------
 
+# Two functions to delete recipes
+
+async def delete_recipe_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
+    bot_message = (
+        "Please send titles of recipes/recipe you want to delete in the following format:\n"
+        "\n"
+        "Title 1\n"
+        "Title 2\n"
+        "etc.\n\n"
+        "/cancel to exit" 
+    )
+    await update.message.reply_text(bot_message)
+    return 1
+
+async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    lines = user_text.split('\n')
+    for line in lines: line.strip()
+    if len(lines)>0:
+        for title in lines: 
+            if database.delete_recipe(title):
+                await update.message.reply_text(f"✅{title} deleted successfully!")
+            else: 
+                await update.message.reply_text(f"❌ERROR {title} not deleted, check if there is a recipe with such name and try again")
+                return 1
+        return ConversationHandler.END
+    else: 
+        await update.message.reply_text(f"❌ERROR No recipe was given to delete, try again")
+        return 1
+        
+#-----------------------------------------------
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
+
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("add_recipe", add_recipe)],
         states={
             1: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, save_recipe)
+            ]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]    
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("delete_recipe", delete_recipe_response)],
+        states={
+            1:[
+                MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action)
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel)]    
