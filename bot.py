@@ -8,6 +8,7 @@ from telegram.ext import (
     ConversationHandler,
     MessageHandler,
     filters,
+    ApplicationHandlerStop,
 )
 import os
 from dotenv import load_dotenv
@@ -38,9 +39,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text)   
     
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
+
+
+async def adding_conversation_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Please finnish adding the recipe first\n/cancel to exit")
+    return 1
+
+async def deleting_conversation_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Please finnish deleting the recipe first\n/cancel to exit")
+    return 1
 
 
 #Two functions to add recipes
@@ -132,30 +142,32 @@ async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("search", search))
 
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("add_recipe", add_recipe)],
         states={
-            1: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, save_recipe)
-            ]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_recipe),
+                CommandHandler("add_recipe", adding_conversation_interupt),
+                CommandHandler("delete_recipe", adding_conversation_interupt)]
         },
-        fallbacks=[CommandHandler("cancel", cancel)]    
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),adding_conversation_interupt)]
     ))
 
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("delete_recipe", delete_recipe_response)],
         states={
-            1:[
-                MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action)
-            ]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action),
+                CommandHandler("add_recipe", deleting_conversation_interupt),
+                CommandHandler("delete_recipe", deleting_conversation_interupt)]
         },
-        fallbacks=[CommandHandler("cancel", cancel)]    
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_conversation_interupt)] 
     ))
-    
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("search", search))
+
     print("Bot is running...")
     app.run_polling()
 
