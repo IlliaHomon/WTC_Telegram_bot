@@ -51,11 +51,22 @@ def search_recipes_by_title(keyword: str, user_id: int):
     connection.close()  
     return matches
 
+def search_recipes_by_category(category: str, user_id: int):
+    connection = sqlite3.connect(DB_NAME)
+    cursor = connection.cursor()
+    
+    cursor.execute('''SELECT title, category, instructions FROM recipes 
+        WHERE LOWER(category) LIKE LOWER(?) AND user_id = ?''', [f"%{category.strip()}%",user_id])
+    
+    matches = cursor.fetchall()
+    connection.close()  
+    return matches
+
 def get_all_categories(user_id: int) -> list[str]:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    cursor.execute('SELECT DISTINCT category FROM recipes WHERE user_id = ? ORDER BY category ASC', [user_id])
+    cursor.execute('SELECT DISTINCT LOWER(category) FROM recipes WHERE user_id = ? ORDER BY category ASC', [user_id])
     categories = [row[0] for row in cursor.fetchall()]
 
     conn.close()
