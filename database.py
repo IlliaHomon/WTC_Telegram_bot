@@ -1,39 +1,107 @@
 import sqlite3
+import secrets
+import string
 
 DB_NAME = "recipes.db"
 
+def get_connection():
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
+
 def init_db():
-    connection = sqlite3.connect(DB_NAME)
+    connection = get_connection()
     cursor = connection.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS families (
+                        family_id TEXT PRIMARY KEY
+                    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                        user_id INTEGER PRIMARY KEY,
+                        family_id TEXT NOT NULL,
+                        FOREIGN KEY (family_id) REFERENCES families(family_id)
+                    )''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS recipes (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        family_id TEXT NOT NULL,
                         user_id INTEGER NOT NULL,
                         title TEXT NOT NULL,
                         category TEXT NOT NULL,
-                        instructions TEXT
-                        )''')
+                        instructions TEXT,
+                        FOREIGN KEY (family_id) REFERENCES families(family_id)
+                    )''')
     connection.commit()
     connection.close()
 
+#All functions regarding family_id   
+def generate_family_id(length: int = 6):
+    characters = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(characters) for i in range(length))
+
+def create_family(user_id: int) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+    while True:
+        family_id = generate_family_id()
+        cursor.execute("SELECT 1 FROM families WHERE family_id=?", (family_id,))
+        if not cursor.fetchone():
+            break
+
+    cursor.execute("INSERT INTO families (family_id) VALUES (?)", (family_id,))
+    cursor.execute("INSERT INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+
+    conn.commit()
+    conn.close()
+
+    return family_id
+
+def get_user_family_id(user_id:int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT family_id FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row and row[0]:
+        return row[0]
+    return None
+
+def user_has_family(user_id:int) -> bool:
+    return get_user_family_id(user_id) is not None
+
+def assign_family_id(user_id:int, family_id:str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT 1 FROM families WHERE family_id = ?", (family_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return False
+    
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+    conn.commit()
+    conn.close()
+    return True
+
+#--------------------------------------------
 
 def add_recipe(user_id: int, title: str, category: str, instructions: str=""):
-    connection = sqlite3.connect(DB_NAME)
+    connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute('''INSERT INTO recipes (user_id, title, category, instructions) VALUES(?,?,?,?)''',
+    cursor.execute("INSERT INTO recipes (user_id, title, category, instructions) VALUES(?,?,?,?)",
                    (user_id,title,category,instructions))
     connection.commit()
     connection.close()
 
 def delete_recipe(identifier: int|str, user_id: int) -> bool:
-    connection = sqlite3.connect(DB_NAME)
+    connection = get_connection()
     cursor = connection.cursor()
     if isinstance(identifier, int):
-        cursor.execute('''DELETE FROM recipes WHERE id = ? AND user_id = ?''', [identifier,user_id])
+        cursor.execute("DELETE FROM recipes WHERE id = ? AND user_id = ?", [identifier,user_id])
     elif isinstance(identifier, str):
         if identifier.isdigit():
             identifier=int(identifier)
-            cursor.execute('''DELETE FROM recipes WHERE id = ? AND user_id = ?''', [identifier,user_id])
-        else: cursor.execute('''DELETE FROM recipes WHERE LOWER(title) = LOWER(?) AND user_id = ?''', [identifier,user_id])
+            cursor.execute("DELETE FROM recipes WHERE id = ? AND user_id = ?", [identifier,user_id])
+        else: cursor.execute("DELETE FROM recipes WHERE LOWER(title) = LOWER(?) AND user_id = ?", [identifier,user_id])
     connection.commit()
     deleted = cursor.rowcount>0
     connection.close()
@@ -41,7 +109,7 @@ def delete_recipe(identifier: int|str, user_id: int) -> bool:
 
 
 def search_recipes_by_title(keyword: str, user_id: int):
-    connection = sqlite3.connect(DB_NAME)
+    connection = get_connection()
     cursor = connection.cursor()
     
     cursor.execute('''SELECT title, category, instructions FROM recipes 
@@ -52,7 +120,7 @@ def search_recipes_by_title(keyword: str, user_id: int):
     return matches
 
 def search_recipes_by_category(category: str, user_id: int):
-    connection = sqlite3.connect(DB_NAME)
+    connection = get_connection()
     cursor = connection.cursor()
     
     cursor.execute('''SELECT title, category, instructions FROM recipes 
@@ -63,10 +131,10 @@ def search_recipes_by_category(category: str, user_id: int):
     return matches
 
 def get_all_categories(user_id: int) -> list[str]:
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT DISTINCT LOWER(category) FROM recipes WHERE user_id = ? ORDER BY category ASC', [user_id])
+    cursor.execute("SELECT DISTINCT LOWER(category) FROM recipes WHERE user_id = ? ORDER BY category ASC", [user_id])
     categories = [row[0] for row in cursor.fetchall()]
 
     conn.close()
@@ -82,7 +150,7 @@ def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
     category_counts = category_counts or {}
     mandatory_categories = mandatory_categories or []
     
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_connection()
     cursor = conn.cursor()
     
     selected_recipes = []

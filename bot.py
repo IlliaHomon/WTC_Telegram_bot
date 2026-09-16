@@ -44,20 +44,49 @@ async def post_init(application:Application):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     database.init_db()
+    if(not database.user_has_family):
+        user_id = update.effective_user.id
+        database.create_family(user_id)
     welcome_text = (
         "👋 Welcome to Recipe Planner Bot!\n\n"
-        "Here is what I can do:\n"
-        "• /add_recipe - Step-by-step interactive recipe creation\n"
-        "• /delete_recipe - Step-by-step interactive recipe removal\n"
-        "• /search <keyword> - Search recipes by title\n"
-        "• /list <category> - A list of all recipes in the category\n"
-        "• /categories - List all stored recipe categories\n"
-        "• /generate_plan- Generate a random meal plan\n"
-        "• /cancel - Cancel current multi-step action"
+        "If you are a new user you will be assigned a family id 👨‍👩‍👦\n"
+        "🧩 To get info abbout all the commands use /commands\n"
+        "💞Enjoy using the WTC Bot!💞"
     )
     await update.message.reply_text(welcome_text)   
 
 #-----------------------------------------------
+
+async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "All the commands available for WTC bot:\n\n"
+        "👨‍👩‍👦 Family-related commands:\n"
+        "• /my_family_id - get your family id\n"
+        "• /join_family - join another user's family\n"
+        "• /leave_family - leave your current family(You dont need to\n"
+        "do it if you want to join another family, just use /join_family.\n"
+        "If you leave a family a new family_id will be assigned automatically)\n"
+        "• /family_functionality - all the information related to\n" \
+        "how families work and what are they for\n\n"
+        "🍽 Recipes-related commands:\n"
+        "• /add_recipe - Step-by-step interactive recipe creation\n"
+        "• /delete_recipe - Step-by-step interactive recipe removal\n"
+        "• /search <keyword> - Search recipes by title\n"
+        "• /list <category> - A list of all recipes in the category\n"
+        "• /categories - List all stored recipe categories\n\n"
+        "⚙️ All other commands:\n"
+        "• /generate_plan- Generate a random meal plan\n"
+        "• /cancel - Cancel current multi-step action"
+    )
+    await update.message.reply_text(text)
+
+async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    family_id = database.get_user_family_id(user_id)
+    if(family_id is None):
+        family_id = database.create_family(user_id)
+    reply = "Your family id: " + family_id
+    await update.message.reply_text(reply)
     
 #A function to cancel multi-step action(Conversation)
 
@@ -227,6 +256,8 @@ def main():
     app.add_handler(CommandHandler("search", search))
     app.add_handler(CommandHandler("categories", categories))
     app.add_handler(CommandHandler("list", list_recipes_in_category))
+    app.add_handler(CommandHandler("commands", get_all_commands))
+    app.add_handler(CommandHandler("my_family_id", get_my_family_id))
 
     print("Bot is running...")
     app.run_polling()
