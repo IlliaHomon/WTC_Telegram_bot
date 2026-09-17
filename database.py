@@ -78,70 +78,80 @@ def assign_family_id(user_id:int, family_id:str) -> bool:
         return False
     
     cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+    cursor.execute("UPDATE recipes SET family_id = ? WHERE user_id = ?", (family_id, user_id))
+    
     conn.commit()
     conn.close()
     return True
 
 #--------------------------------------------
 
-def add_recipe(user_id: int, title: str, category: str, instructions: str=""):
+def add_recipe(user_id: int, title: str, family_id: str, category: str, instructions: str=""):
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO recipes (user_id, title, category, instructions) VALUES(?,?,?,?)",
-                   (user_id,title,category,instructions))
+    cursor.execute("INSERT INTO recipes (user_id, family_id, title, category, instructions) VALUES(?,?,?,?,?)",
+                   (user_id,family_id,title,category,instructions))
     connection.commit()
     connection.close()
 
-def delete_recipe(identifier: int|str, user_id: int) -> bool:
+def delete_recipe(identifier: int|str, user_id: int, family_id: str) -> bool:
     connection = get_connection()
     cursor = connection.cursor()
     if isinstance(identifier, int):
-        cursor.execute("DELETE FROM recipes WHERE id = ? AND user_id = ?", [identifier,user_id])
+        cursor.execute("DELETE FROM recipes WHERE id = ? AND (user_id = ? OR family_id = ?)", [identifier,user_id,family_id])
     elif isinstance(identifier, str):
         if identifier.isdigit():
             identifier=int(identifier)
-            cursor.execute("DELETE FROM recipes WHERE id = ? AND user_id = ?", [identifier,user_id])
-        else: cursor.execute("DELETE FROM recipes WHERE LOWER(title) = LOWER(?) AND user_id = ?", [identifier,user_id])
+            cursor.execute("DELETE FROM recipes WHERE id = ? AND (user_id = ? OR family_id = ?)", [identifier,user_id,family_id])
+        else: cursor.execute("DELETE FROM recipes WHERE LOWER(title) = LOWER(?) AND (user_id = ? OR family_id = ?)", [identifier,user_id,family_id])
     connection.commit()
     deleted = cursor.rowcount>0
-    connection.close()
+    connection.close()  
     return deleted
 
+def delete_all_user_recipes(user_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM recipes WHERE user_id = ?", (user_id,))
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
 
-def search_recipes_by_title(keyword: str, user_id: int):
+def search_recipes_by_title(keyword: str, user_id: int, family_id: str):
     connection = get_connection()
     cursor = connection.cursor()
     
     cursor.execute('''SELECT title, category, instructions FROM recipes 
-        WHERE LOWER(title) LIKE LOWER(?) AND user_id = ?''', [f"%{keyword.strip()}%",user_id])
+        WHERE LOWER(title) LIKE LOWER(?) AND (user_id = ? OR family_id = ?)''', [f"%{keyword.strip()}%",user_id,family_id])
     
     matches = cursor.fetchall()
     connection.close()  
     return matches
 
-def search_recipes_by_category(category: str, user_id: int):
+def search_recipes_by_category(category: str, user_id: int, family_id: str):
     connection = get_connection()
     cursor = connection.cursor()
     
     cursor.execute('''SELECT title, category, instructions FROM recipes 
-        WHERE LOWER(category) LIKE LOWER(?) AND user_id = ?''', [f"%{category.strip()}%",user_id])
+        WHERE LOWER(category) LIKE LOWER(?) AND (user_id = ? OR family_id = ?)''', [f"%{category.strip()}%",user_id, family_id])
     
     matches = cursor.fetchall()
     connection.close()  
     return matches
 
-def get_all_categories(user_id: int) -> list[str]:
+def get_all_categories(user_id: int, family_id: str) -> list[str]:
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT DISTINCT LOWER(category) FROM recipes WHERE user_id = ? ORDER BY category ASC", [user_id])
+    cursor.execute("SELECT DISTINCT LOWER(category) FROM recipes WHERE (user_id = ? OR family_id = ?) ORDER BY category ASC", [user_id, family_id])
     categories = [row[0] for row in cursor.fetchall()]
 
     conn.close()
     return categories
 
 
-def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
+def get_custom_meal_plan(user_id: int, family_id: str, mandatory_ids: list[int] = None,
     category_counts: dict[str, int] = None,
     mandatory_categories: list[str] = None,
     total_count: int = 3):
@@ -168,8 +178,8 @@ def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE id IN ({placeholders}) AND user_id = ?
-        ''', mandatory_ids + [user_id]  )
+            WHERE id IN ({placeholders}) AND (user_id = ? OR family_id = ?)
+        ''', mandatory_ids + [user_id,family_id]  )
         
         for recipe in cursor.fetchall():
             selected_recipes.append(recipe)
@@ -181,12 +191,12 @@ def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
             continue
             
         exclude_sql = get_exclude_sql()
-        params = [category] + list(selected_ids) + [user_id,count]
+        params = [category] + list(selected_ids) + [user_id,family_id,count]
         
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND user_id = ?
+            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND (user_id = ? OR family_id = ?)
             ORDER BY RANDOM() 
             LIMIT ?
         ''', params)
@@ -205,12 +215,12 @@ def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
             continue
 
         exclude_sql = get_exclude_sql()
-        params = [cat] + list(selected_ids) + [user_id,1]
+        params = [cat] + list(selected_ids) + [user_id,family_id,1]
         
         cursor.execute(f'''
             SELECT id, title, category, instructions 
             FROM recipes 
-            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND user_id = ?
+            WHERE LOWER(category) = LOWER(?) {exclude_sql} AND (user_id = ? OR family_id = ?)
             ORDER BY RANDOM() 
             LIMIT ?
         ''', params)
@@ -225,11 +235,11 @@ def get_custom_meal_plan(user_id: int, mandatory_ids: list[int] = None,
     if remaining_slots > 0:
         if selected_ids:
             placeholders = ','.join('?' for _ in selected_ids)
-            where_sql = f"WHERE id NOT IN ({placeholders}) AND user_id = ?"
-            params = list(selected_ids) + [user_id, remaining_slots]
+            where_sql = f"WHERE id NOT IN ({placeholders}) AND (user_id = ? OR family_id = ?)"
+            params = list(selected_ids) + [user_id,family_id, remaining_slots]
         else:
-            where_sql = "WHERE user_id = ?"
-            params = [user_id, remaining_slots]
+            where_sql = "WHERE (user_id = ? OR family_id = ?)"
+            params = [user_id,family_id, remaining_slots]
             
         cursor.execute(f'''
             SELECT id, title, category, instructions 

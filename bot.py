@@ -30,11 +30,17 @@ async def post_init(application:Application):
         BotCommand("start","Start the bot"),
         BotCommand("add_recipe","Add a new recipe"),
         BotCommand("delete_recipe","Delete a recipe"),
+        BotCommand("delete_all_my_recipes", "Delete all your recipes"), 
         BotCommand("search","Search recipes by keyword"),
         BotCommand("list","List of recipes in a category"),
         BotCommand("categories","View all recipe categories you have added"),
         BotCommand("generate_plan","Generate a new meal plan"),
-        BotCommand("cancel","Cancel current action")
+        BotCommand("cancel","Cancel current action"),
+        BotCommand("my_family_id","Get your family id"),
+        BotCommand("join_family","Join a family via family id"),
+        BotCommand("leave_family","Leave your current family"),
+        BotCommand("family_functionality","All te info regarding families"),
+        BotCommand("commands","Get a list of all commands")
     ]
     await application.bot.set_my_commands(commands)
 
@@ -44,12 +50,12 @@ async def post_init(application:Application):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     database.init_db()
-    if(not database.user_has_family):
-        user_id = update.effective_user.id
+    user_id = update.effective_user.id
+    if(not database.user_has_family(user_id)):
         database.create_family(user_id)
     welcome_text = (
         "👋 Welcome to Recipe Planner Bot!\n\n"
-        "If you are a new user you will be assigned a family id 👨‍👩‍👦\n"
+        "👨‍👩‍👦 If you are a new user you will be assigned a family id 👨‍👩‍👦\n"
         "🧩 To get info abbout all the commands use /commands\n"
         "💞Enjoy using the WTC Bot!💞"
     )
@@ -71,12 +77,13 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "🍽 Recipes-related commands:\n"
         "• /add_recipe - Step-by-step interactive recipe creation\n"
         "• /delete_recipe - Step-by-step interactive recipe removal\n"
+        "• /delete_all_my_recipes - Deletes all your recipes\n"
         "• /search <keyword> - Search recipes by title\n"
         "• /list <category> - A list of all recipes in the category\n"
         "• /categories - List all stored recipe categories\n\n"
         "⚙️ All other commands:\n"
         "• /generate_plan- Generate a random meal plan\n"
-        "• /cancel - Cancel current multi-step action"
+        "• /cancel - Cancel current multi-step action"      
     )
     await update.message.reply_text(text)
 
@@ -106,6 +113,9 @@ async def deleting_conversation_interupt(update: Update, context: ContextTypes.D
     await update.message.reply_text("Please finnish deleting the recipe first\n/cancel to exit")
     return 1
 
+async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Please finnish deleting all your recipes first\n N or /cancel to exit")
+
 #-----------------------------------------------
 
 #Two functions to add recipes
@@ -129,8 +139,12 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
         Title = lines[0].strip()
         Category = lines[1].strip()
         Instructions = "\n".join(lines[2:]).strip() if len(lines)>2 else ""
-        User_ID = update.effective_user.id
-        database.add_recipe(User_ID ,Title,Category,Instructions)
+        user_id = update.effective_user.id
+        family_id = database.get_user_family_id(user_id)
+        if family_id is None:
+                family_id = database.create_family(user_id)
+        
+        database.add_recipe(user_id ,Title,family_id,Category,Instructions)
         await update.message.reply_text("✅Recipe added successfully!")
         return ConversationHandler.END
     else: 
@@ -139,7 +153,7 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 #------------------------------------------------
 
-# Two functions to delete recipes
+# Two functions to delete a recipe
 
 async def delete_recipe_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     bot_message = (
@@ -156,31 +170,66 @@ async def delete_recipe_response(update:Update, context: ContextTypes.DEFAULT_TY
 async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     lines = user_text.split('\n')
-    for line in lines: line.strip()
+    lines = [line.strip() for line in lines if line.strip()]
     if len(lines)>0:
         user_id = update.effective_user.id
+        family_id = database.get_user_family_id(user_id)
+        if family_id is None:
+            family_id = database.create_family(user_id)
+
+        has_error = False
         for title in lines: 
-            if database.delete_recipe(title, user_id):
+            if database.delete_recipe(title, user_id, family_id):
                 await update.message.reply_text(f"✅{title} deleted successfully!")
             else: 
-                await update.message.reply_text(f"❌ERROR {title} not deleted, check if there is a recipe with such name and try again")
-                return 1
+                await update.message.reply_text(f"❌ERROR {title} not deleted, check if there is a recipe with such name and try again\n/cancel to exit")
+                has_error = True
+
+        if has_error: return 1
         return ConversationHandler.END
     else: 
-        await update.message.reply_text(f"❌ERROR No recipe was given to delete, try again")
+        await update.message.reply_text(f"❌ERROR No recipe was given to delete, try again\n/cancel to exit")
         return 1
         
+#-----------------------------------------------
+
+#Two functions to delete all recipes added by user
+
+async def delete_my_recipes_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
+    await update.message.reply_text("Are you sure you want to delete ALL recipes added by you? Y/N:")
+    return 1
+
+async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    if user_text.lower() == "y":
+        user_id = update.effective_user.id
+        number_of_deleted_recipes = database.delete_all_user_recipes(user_id)
+        if number_of_deleted_recipes > 0:
+            await update.message.reply_text(f"✅All {number_of_deleted_recipes} recipes deleted successfully!")
+        else:
+            await update.message.reply_text("❌ERROR No recipes to delete")
+        return ConversationHandler.END
+    elif user_text.lower() == "n":
+        await update.message.reply_text("Cancelled successfully")
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text("❌ERROR Please respond with either Y to proceed wit deletion\n or N to cancel!")
+        return 1
+
 #-----------------------------------------------
 
 # Searching function
 
 async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    family_id = database.get_user_family_id(user_id)
+    if family_id is None:
+        family_id = database.create_family(user_id)
     if not context.args:
         await update.message.reply_text("❌ERROR Please provide a keyword, for example: /search pasta")
         return
     user_search = " ".join(context.args).strip()
-    results = database.search_recipes_by_title(user_search, user_id)
+    results = database.search_recipes_by_title(user_search, user_id, family_id)
     if not results:
         await update.message.reply_text("❌ERROR No recipe found by that keyword")
         return
@@ -198,11 +247,14 @@ async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    family_id = database.get_user_family_id(user_id)
+    if family_id is None:
+        family_id = database.create_family(user_id)
     if not context.args:
         await update.message.reply_text("❌ERROR Please provide a category, for example: /list soup")
         return
     user_request = " ".join(context.args).strip()
-    results = database.search_recipes_by_category(user_request, user_id)
+    results = database.search_recipes_by_category(user_request, user_id, family_id)
     if not results:
         await update.message.reply_text("❌ERROR No recipe found by that category")
         return
@@ -220,7 +272,10 @@ async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_T
 
 async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    results = database.get_all_categories(user_id)
+    family_id = database.get_user_family_id(user_id)
+    if family_id is None:
+        family_id = database.create_family(user_id)
+    results = database.get_all_categories(user_id,family_id)
     category_names=[cat for cat in results]
     formatted_results = "• " + "\n• ".join(category_names)
     await update.message.reply_text(f"Here are all categories you've added: \n{formatted_results}")
@@ -233,9 +288,7 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("add_recipe", add_recipe)],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_recipe),
-                CommandHandler("add_recipe", adding_conversation_interupt),
-                CommandHandler("delete_recipe", adding_conversation_interupt)]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_recipe)]
         },
         fallbacks=[CommandHandler("cancel", cancel),
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),adding_conversation_interupt)]
@@ -244,12 +297,19 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("delete_recipe", delete_recipe_response)],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action),
-                CommandHandler("add_recipe", deleting_conversation_interupt),
-                CommandHandler("delete_recipe", deleting_conversation_interupt)]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action)]
         },
         fallbacks=[CommandHandler("cancel", cancel),
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_conversation_interupt)] 
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("delete_all_my_recipes", delete_my_recipes_response)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_my_recipes_action)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_my_recipes_interupt)] 
     ))
 
     app.add_handler(CommandHandler("start", start))
