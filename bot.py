@@ -40,7 +40,9 @@ async def post_init(application:Application):
         BotCommand("join_family","Join a family via family id"),
         BotCommand("leave_family","Leave your current family"),
         BotCommand("family_functionality","All te info regarding families"),
-        BotCommand("commands","Get a list of all commands")
+        BotCommand("commands","Get a list of all commands"),
+        BotCommand("all_my_recipes","Titles of all your recipes"),
+        BotCommand("family_members", "All users in your family")
     ]
     await application.bot.set_my_commands(commands)
 
@@ -56,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "👋 Welcome to Recipe Planner Bot!\n\n"
         "👨‍👩‍👦 If you are a new user you will be assigned a family id 👨‍👩‍👦\n"
-        "🧩 To get info abbout all the commands use /commands\n"
+        "🧩 Use /commands to get info abbout all the commands\n"
         "💞Enjoy using the WTC Bot!💞"
     )
     await update.message.reply_text(welcome_text)   
@@ -68,7 +70,7 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "All the commands available for WTC bot:\n\n"
         "👨‍👩‍👦 Family-related commands:\n"
         "• /my_family_id - get your family id\n"
-        "• /join_family - join another user's family\n"
+        "• /join_family <family_id> - join another family\n"
         "• /leave_family - leave your current family(You dont need to\n"
         "do it if you want to join another family, just use /join_family.\n"
         "If you leave a family a new family_id will be assigned automatically)\n"
@@ -79,6 +81,7 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /delete_recipe - Step-by-step interactive recipe removal\n"
         "• /delete_all_my_recipes - Deletes all your recipes\n"
         "• /search <keyword> - Search recipes by title\n"
+        "• /all_my_recipes - Titles of all your recipes"
         "• /list <category> - A list of all recipes in the category\n"
         "• /categories - List all stored recipe categories\n\n"
         "⚙️ All other commands:\n"
@@ -87,6 +90,8 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(text)
 
+#Family-related functions
+
 async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     family_id = database.get_user_family_id(user_id)
@@ -94,6 +99,22 @@ async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         family_id = database.create_family(user_id)
     reply = "Your family id: " + family_id
     await update.message.reply_text(reply)
+
+async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not context.args:
+        await update.message.reply_text("❌ERROR Please provide a family_id, for example: /join_family A1A1A1")
+        return
+    family_id = " ".join(context.args).strip()
+    current_family_id = database.get_user_family_id(user_id)
+    if(current_family_id == family_id):
+        await update.message.reply_text("You are already a part of that family")
+    else:
+        joined_successfully = database.assign_family_id(user_id, family_id)
+        if joined_successfully:
+            await update.message.reply_text("✅Successfully joined!")
+        else:
+            await update.message.reply_text("❌ERROR No family was found with such family_id")
     
 #A function to cancel multi-step action(Conversation)
 
@@ -318,6 +339,7 @@ def main():
     app.add_handler(CommandHandler("list", list_recipes_in_category))
     app.add_handler(CommandHandler("commands", get_all_commands))
     app.add_handler(CommandHandler("my_family_id", get_my_family_id))
+    app.add_handler(CommandHandler("join_family", join_family))
 
     print("Bot is running...")
     app.run_polling()
