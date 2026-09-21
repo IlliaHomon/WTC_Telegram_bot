@@ -39,7 +39,7 @@ async def post_init(application:Application):
         BotCommand("my_family_id","Get your family id"),
         BotCommand("join_family","Join a family via family id"),
         BotCommand("leave_family","Leave your current family"),
-        BotCommand("family_functionality","All te info regarding families"),
+        BotCommand("what_is_family","Info on what is a family and what it's for"),
         BotCommand("commands","Get a list of all commands"),
         BotCommand("all_my_recipes","Titles of all your recipes"),
         BotCommand("family_members", "All users in your family")
@@ -74,8 +74,8 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /leave_family - leave your current family(You dont need to\n"
         "do it if you want to join another family, just use /join_family.\n"
         "If you leave a family a new family_id will be assigned automatically)\n"
-        "• /family_functionality - all the information related to\n" 
-        "how families work and what are they for\n\n"
+        "• /what_is_family - explains what is a family and what's it for\n"
+        "• /family_members - get a list of all current members of your family\n\n"
         "🍽 Recipes-related commands:\n"
         "• /add_recipe - Step-by-step interactive recipe creation\n"
         "• /delete_recipe - Step-by-step interactive recipe removal\n"
@@ -119,6 +119,15 @@ async def leave_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     database.leave_family(user_id)
     await update.message.reply_text("✅Successfully left! Use /my_family_id to get your new family id")
+
+async def get_family_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👨‍👩‍👦Family is a convenient WTC bot feature that lets multiple\n" \
+                                    "users to access joint recipe database, which means that\n" \
+                                    "you, your boyfriend/girlfriend/husband/wife, your friends,\n"
+                                    "grandmother or even an aunt you've never seen in your life\n" \
+                                    "can access the shared recipes to generate meal plans, search\n" \
+                                    "for recipes your grandma cooked 20 years ago, or any other\n" \
+                                    "purpose you can come up with! Enjoy using WTC bot!")
     
 #A function to cancel multi-step action(Conversation)
 
@@ -345,6 +354,7 @@ def main():
     app.add_handler(CommandHandler("my_family_id", get_my_family_id))
     app.add_handler(CommandHandler("join_family", join_family))
     app.add_handler(CommandHandler("leave_family", leave_family))
+    app.add_handler(CommandHandler("what_is_family", get_family_info))
 
     print("Bot is running...")
     app.run_polling()
