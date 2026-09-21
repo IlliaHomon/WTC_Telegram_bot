@@ -74,19 +74,18 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /leave_family - leave your current family(You dont need to\n"
         "do it if you want to join another family, just use /join_family.\n"
         "If you leave a family a new family_id will be assigned automatically)\n"
-        "• /family_functionality - all the information related to\n" \
+        "• /family_functionality - all the information related to\n" 
         "how families work and what are they for\n\n"
         "🍽 Recipes-related commands:\n"
         "• /add_recipe - Step-by-step interactive recipe creation\n"
         "• /delete_recipe - Step-by-step interactive recipe removal\n"
         "• /delete_all_my_recipes - Deletes all your recipes\n"
         "• /search <keyword> - Search recipes by title\n"
-        "• /all_my_recipes - Titles of all your recipes"
+        "• /all_my_recipes - Titles of all your recipes\n"
         "• /list <category> - A list of all recipes in the category\n"
         "• /categories - List all stored recipe categories\n\n"
         "⚙️ All other commands:\n"
-        "• /generate_plan- Generate a random meal plan\n"
-        "• /cancel - Cancel current multi-step action"      
+        "• /generate_plan- Generate a random meal plan"     
     )
     await update.message.reply_text(text)
 
@@ -103,7 +102,7 @@ async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not context.args:
-        await update.message.reply_text("❌ERROR Please provide a family_id, for example: /join_family A1A1A1")
+        await update.message.reply_text("❌ERROR Please provide a family id, for example: /join_family A1A1A1")
         return
     family_id = " ".join(context.args).strip()
     current_family_id = database.get_user_family_id(user_id)
@@ -114,7 +113,12 @@ async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if joined_successfully:
             await update.message.reply_text("✅Successfully joined!")
         else:
-            await update.message.reply_text("❌ERROR No family was found with such family_id")
+            await update.message.reply_text("❌ERROR No family was found with such family id")
+
+async def leave_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    database.leave_family(user_id)
+    await update.message.reply_text("✅Successfully left! Use /my_family_id to get your new family id")
     
 #A function to cancel multi-step action(Conversation)
 
@@ -135,7 +139,7 @@ async def deleting_conversation_interupt(update: Update, context: ContextTypes.D
     return 1
 
 async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Please finnish deleting all your recipes first\n N or /cancel to exit")
+    await update.message.reply_text("Please finnish deleting all your recipes first\n/cancel to exit")
 
 #-----------------------------------------------
 
@@ -234,7 +238,7 @@ async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("Cancelled successfully")
         return ConversationHandler.END
     else:
-        await update.message.reply_text("❌ERROR Please respond with either Y to proceed wit deletion\n or N to cancel!")
+        await update.message.reply_text("❌ERROR Please respond with either Y to proceed with deletion\n or N to cancel!")
         return 1
 
 #-----------------------------------------------
@@ -340,6 +344,7 @@ def main():
     app.add_handler(CommandHandler("commands", get_all_commands))
     app.add_handler(CommandHandler("my_family_id", get_my_family_id))
     app.add_handler(CommandHandler("join_family", join_family))
+    app.add_handler(CommandHandler("leave_family", leave_family))
 
     print("Bot is running...")
     app.run_polling()

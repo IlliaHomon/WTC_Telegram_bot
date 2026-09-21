@@ -47,7 +47,7 @@ def create_family(user_id: int) -> str:
             break
 
     cursor.execute("INSERT INTO families (family_id) VALUES (?)", (family_id,))
-    cursor.execute("INSERT INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
 
     conn.commit()
     conn.close()
@@ -83,6 +83,16 @@ def assign_family_id(user_id:int, family_id:str) -> bool:
     conn.commit()
     conn.close()
     return True
+
+def leave_family(user_id:int):
+    new_family_id = create_family(user_id)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recipes SET family_id = ? WHERE user_id = ?", (new_family_id, user_id))
+
+    conn.commit()
+    conn.close()
 
 #--------------------------------------------
 
