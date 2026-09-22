@@ -41,7 +41,7 @@ async def post_init(application:Application):
         BotCommand("leave_family","Leave your current family"),
         BotCommand("what_is_family","Info on what is a family and what it's for"),
         BotCommand("commands","Get a list of all commands"),
-        BotCommand("all_my_recipes","Titles of all your recipes"),
+        BotCommand("all_recipes","Titles of all your recipes"),
         BotCommand("family_members", "All users in your family")
     ]
     await application.bot.set_my_commands(commands)
@@ -84,7 +84,7 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /delete_recipe - Step-by-step interactive recipe removal\n"
         "• /delete_all_my_recipes - Deletes all your recipes\n"
         "• /search <keyword> - Search recipes by title\n"
-        "• /all_my_recipes - Titles of all your recipes\n"
+        "• /all_recipes - Titles of all your recipes\n"
         "• /list <category> - A list of all recipes in the category\n"
         "• /categories - List all stored recipe categories\n\n"
         "⚙️ All other commands:\n"
@@ -327,6 +327,23 @@ async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_T
 
 #-----------------------------------------------
 
+#A function to list all titles of recipes available to user
+
+async def all_recipes(update:Update, context:ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
+    if family_id is None:
+        family_id = database.create_family(user_id,username)
+
+    all_titles = database.get_all_recipes(user_id,family_id)
+    reply_text = "🍽Here are the titles of all recipes available to you:\n\n"
+    for index,title in enumerate(all_titles,start=1):
+        reply_text += f"{index}. {title}\n"
+    await update.message.reply_text(reply_text)
+
+#-----------------------------------------------
+
 #A function to list all recipe categories the user added
 
 async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
@@ -382,6 +399,7 @@ def main():
     app.add_handler(CommandHandler("leave_family", leave_family))
     app.add_handler(CommandHandler("what_is_family", get_family_info))
     app.add_handler(CommandHandler("family_members", get_family_members))
+    app.add_handler(CommandHandler("all_recipes", all_recipes))
 
     print("Bot is running...")
     app.run_polling()

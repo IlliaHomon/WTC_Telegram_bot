@@ -176,6 +176,15 @@ def get_all_categories(user_id: int, family_id: str) -> list[str]:
     conn.close()
     return categories
 
+def get_all_recipes(user_id: int, family_id: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT title FROM recipes WHERE (user_id = ? OR family_id = ?)",(user_id,family_id))
+    recipe_titles = [row[0] for row in cursor.fetchall() if row[0]]
+    conn.close()
+    return recipe_titles
+
 
 def get_custom_meal_plan(user_id: int, family_id: str, mandatory_ids: list[int] = None,
     category_counts: dict[str, int] = None,
