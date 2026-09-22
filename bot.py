@@ -53,8 +53,11 @@ async def post_init(application:Application):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     database.init_db()
     user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
     if(not database.user_has_family(user_id)):
-        database.create_family(user_id)
+        database.create_family(user_id, username)
+    database.get_user_family_id(user_id,username) #To trigger the username saving
+
     welcome_text = (
         "👋 Welcome to Recipe Planner Bot!\n\n"
         "👨‍👩‍👦 If you are a new user you will be assigned a family id 👨‍👩‍👦\n"
@@ -93,9 +96,10 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    family_id = database.get_user_family_id(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
     if(family_id is None):
-        family_id = database.create_family(user_id)
+        family_id = database.create_family(user_id,username)
     reply = "Your family id: " + family_id
     await update.message.reply_text(reply)
 
@@ -105,11 +109,12 @@ async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ERROR Please provide a family id, for example: /join_family A1A1A1")
         return
     family_id = " ".join(context.args).strip()
-    current_family_id = database.get_user_family_id(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    current_family_id = database.get_user_family_id(user_id,username)
     if(current_family_id == family_id):
         await update.message.reply_text("You are already a part of that family")
     else:
-        joined_successfully = database.assign_family_id(user_id, family_id)
+        joined_successfully = database.assign_family_id(user_id, family_id, username)
         if joined_successfully:
             await update.message.reply_text("✅Successfully joined!")
         else:
@@ -117,7 +122,8 @@ async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def leave_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    database.leave_family(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    database.leave_family(user_id,username)
     await update.message.reply_text("✅Successfully left! Use /my_family_id to get your new family id")
 
 async def get_family_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,6 +134,21 @@ async def get_family_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     "can access the shared recipes to generate meal plans, search\n" \
                                     "for recipes your grandma cooked 20 years ago, or any other\n" \
                                     "purpose you can come up with! Enjoy using WTC bot!")
+
+async def get_family_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
+    if family_id is None:
+        family_id = database.create_family(user_id,username)
+    all_usernames = database.get_all_usernames(family_id)
+    reply_text = "!Note WTC bot can only catch users username\nif they run a command\n\n👨‍👩‍👦Here is the list of all members of your family:\n\n"
+    if all_usernames:
+        for index,name in enumerate(all_usernames,start=1):
+            reply_text += f"{index}. {name}\n"
+    else: reply_text = "No members found."
+
+    await update.message.reply_text(reply_text)
     
 #A function to cancel multi-step action(Conversation)
 
@@ -174,9 +195,10 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
         Category = lines[1].strip()
         Instructions = "\n".join(lines[2:]).strip() if len(lines)>2 else ""
         user_id = update.effective_user.id
-        family_id = database.get_user_family_id(user_id)
+        username = update.effective_user.username or update.effective_user.first_name
+        family_id = database.get_user_family_id(user_id,username)
         if family_id is None:
-                family_id = database.create_family(user_id)
+                family_id = database.create_family(user_id,username)
         
         database.add_recipe(user_id ,Title,family_id,Category,Instructions)
         await update.message.reply_text("✅Recipe added successfully!")
@@ -207,9 +229,10 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
     lines = [line.strip() for line in lines if line.strip()]
     if len(lines)>0:
         user_id = update.effective_user.id
-        family_id = database.get_user_family_id(user_id)
+        username = update.effective_user.username or update.effective_user.first_name
+        family_id = database.get_user_family_id(user_id,username)
         if family_id is None:
-            family_id = database.create_family(user_id)
+            family_id = database.create_family(user_id,username)
 
         has_error = False
         for title in lines: 
@@ -256,9 +279,10 @@ async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_
 
 async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    family_id = database.get_user_family_id(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
     if family_id is None:
-        family_id = database.create_family(user_id)
+        family_id = database.create_family(user_id,username)
     if not context.args:
         await update.message.reply_text("❌ERROR Please provide a keyword, for example: /search pasta")
         return
@@ -281,9 +305,10 @@ async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    family_id = database.get_user_family_id(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
     if family_id is None:
-        family_id = database.create_family(user_id)
+        family_id = database.create_family(user_id,username)
     if not context.args:
         await update.message.reply_text("❌ERROR Please provide a category, for example: /list soup")
         return
@@ -306,9 +331,10 @@ async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_T
 
 async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    family_id = database.get_user_family_id(user_id)
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
     if family_id is None:
-        family_id = database.create_family(user_id)
+        family_id = database.create_family(user_id,username)
     results = database.get_all_categories(user_id,family_id)
     category_names=[cat for cat in results]
     formatted_results = "• " + "\n• ".join(category_names)
@@ -355,6 +381,7 @@ def main():
     app.add_handler(CommandHandler("join_family", join_family))
     app.add_handler(CommandHandler("leave_family", leave_family))
     app.add_handler(CommandHandler("what_is_family", get_family_info))
+    app.add_handler(CommandHandler("family_members", get_family_members))
 
     print("Bot is running...")
     app.run_polling()

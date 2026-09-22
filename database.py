@@ -18,6 +18,7 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                         user_id INTEGER PRIMARY KEY,
                         family_id TEXT NOT NULL,
+                        username TEXT,
                         FOREIGN KEY (family_id) REFERENCES families(family_id)
                     )''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS recipes (
@@ -29,15 +30,18 @@ def init_db():
                         instructions TEXT,
                         FOREIGN KEY (family_id) REFERENCES families(family_id)
                     )''')
+    
     connection.commit()
     connection.close()
 
-#All functions regarding family_id   
+    
+
+#All functions regarding family  
 def generate_family_id(length: int = 6):
     characters = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(characters) for i in range(length))
 
-def create_family(user_id: int) -> str:
+def create_family(user_id: int, username: str = None) -> str:
     conn = get_connection()
     cursor = conn.cursor()
     while True:
@@ -47,16 +51,20 @@ def create_family(user_id: int) -> str:
             break
 
     cursor.execute("INSERT INTO families (family_id) VALUES (?)", (family_id,))
-    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id, username) VALUES (?,?,?)", (user_id, family_id, username))
 
     conn.commit()
     conn.close()
 
     return family_id
 
-def get_user_family_id(user_id:int):
+def get_user_family_id(user_id:int, username:str = None):
     conn = get_connection()
     cursor = conn.cursor()
+    if username:
+        cursor.execute("UPDATE users SET username = ? WHERE user_id = ?", (username, user_id))
+        conn.commit()
+
     cursor.execute("SELECT family_id FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
@@ -68,7 +76,7 @@ def get_user_family_id(user_id:int):
 def user_has_family(user_id:int) -> bool:
     return get_user_family_id(user_id) is not None
 
-def assign_family_id(user_id:int, family_id:str) -> bool:
+def assign_family_id(user_id:int, family_id:str, username: str = None) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -77,15 +85,15 @@ def assign_family_id(user_id:int, family_id:str) -> bool:
         conn.close()
         return False
     
-    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id) VALUES (?,?)", (user_id, family_id))
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, family_id, username) VALUES (?,?,?)", (user_id, family_id, username))
     cursor.execute("UPDATE recipes SET family_id = ? WHERE user_id = ?", (family_id, user_id))
     
     conn.commit()
     conn.close()
     return True
 
-def leave_family(user_id:int):
-    new_family_id = create_family(user_id)
+def leave_family(user_id:int, username:str = None):
+    new_family_id = create_family(user_id,username)
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -95,6 +103,14 @@ def leave_family(user_id:int):
     conn.close()
 
 #--------------------------------------------
+
+def get_all_usernames(family_id: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT username FROM users WHERE family_id = ?",(family_id,))
+    usernames = [row[0] for row in cursor.fetchall() if row[0]]
+    conn.close()
+    return usernames
 
 def add_recipe(user_id: int, title: str, family_id: str, category: str, instructions: str=""):
     connection = get_connection()
