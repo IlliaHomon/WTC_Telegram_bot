@@ -181,7 +181,7 @@ async def add_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
         "\n"
         "Title\n"
         "Recipe category (e.g Soup,Main,Salad etc.)\n"
-        "Instructions\n\n"
+        "Instructions(Can be a link)\n\n"
         "/cancel to exit" 
     )
     await update.message.reply_text(bot_message)
@@ -337,9 +337,13 @@ async def all_recipes(update:Update, context:ContextTypes.DEFAULT_TYPE):
         family_id = database.create_family(user_id,username)
 
     all_titles = database.get_all_recipes(user_id,family_id)
-    reply_text = "🍽Here are the titles of all recipes available to you:\n\n"
-    for index,title in enumerate(all_titles,start=1):
-        reply_text += f"{index}. {title}\n"
+
+    if all_titles:
+        reply_text = "🍽Here are the titles of all recipes available to you:\n\n"
+        for index,title in enumerate(all_titles,start=1):
+            reply_text += f"{index}. {title}\n"
+    else: reply_text = "❌ERROR No recipe found, use /add_recipe to add a new recipe!"
+
     await update.message.reply_text(reply_text)
 
 #-----------------------------------------------
@@ -356,6 +360,19 @@ async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
     category_names=[cat for cat in results]
     formatted_results = "• " + "\n• ".join(category_names)
     await update.message.reply_text(f"Here are all categories you've added: \n{formatted_results}")
+
+#-----------------------------------------------
+
+#Functions to generate the meal plan
+
+async def generate_plan_response(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("If you want some recipes included in the plan,\n or you want to have for example 2 soups in the plan\n"
+                                    "Please provide the information in the following format:\n"
+                                    "How many recipes\n"
+                                    "Names of the recipes that need to be included(e.g Pasta Carbonara, Cheese Soup)\n"
+                                    "How much and of which category, recipes should be included(e.g 2 Soup, 1 Salad)\n"
+                                    "/cancel to exit")
+    return 1
 
 #-----------------------------------------------
 
