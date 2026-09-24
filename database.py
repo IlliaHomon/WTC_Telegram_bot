@@ -135,10 +135,10 @@ def delete_recipe(identifier: int|str, user_id: int, family_id: str) -> bool:
     connection.close()  
     return deleted
 
-def delete_all_user_recipes(user_id: int) -> int:
+def delete_all_recipes(user_id: int, family_id: str) -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM recipes WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM recipes WHERE (user_id = ? OR family_id = ?)", (user_id,family_id))
     deleted_count = cursor.rowcount
     conn.commit()
     conn.close()

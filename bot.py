@@ -30,10 +30,11 @@ async def post_init(application:Application):
     commands = [
         BotCommand("start","Start the bot"),
         BotCommand("add_recipe","Add a new recipe"),
-        BotCommand("delete_recipe","Delete a recipe"),
-        BotCommand("delete_all_my_recipes", "Delete all your recipes"), 
+        BotCommand("delete_recipes","Delete 1 or more recipes"),
+        BotCommand("delete_all_recipes", "Delete all your recipes"), 
         BotCommand("search","Search recipes by keyword"),
-        BotCommand("list","List of recipes in a category"),
+        BotCommand("all_recipes","Titles of all your recipes"),
+        BotCommand("all_recipes_in_category","List of recipes in a category"),
         BotCommand("categories","View all recipe categories you have added"),
         BotCommand("generate_plan","Generate a new meal plan"),
         BotCommand("cancel","Cancel current action"),
@@ -41,9 +42,8 @@ async def post_init(application:Application):
         BotCommand("join_family","Join a family via family id"),
         BotCommand("leave_family","Leave your current family"),
         BotCommand("what_is_family","Info on what is a family and what it's for"),
-        BotCommand("commands","Get a list of all commands"),
-        BotCommand("all_recipes","Titles of all your recipes"),
-        BotCommand("family_members", "All users in your family")
+        BotCommand("family_members", "All users in your family"),
+        BotCommand("commands","Get a list of all commands")
     ]
     await application.bot.set_my_commands(commands)
 
@@ -71,25 +71,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "All the commands available for WTC bot:\n\n"
+        "📋All the commands available for WTC bot:\n\n"
+        "🍽 Recipes-related commands:\n"
+        "• /add_recipe - Add a new recipe, Title on line 1 and Category on line 2 are mandatory, adding instructions on line 3 is optional. Recipes you add can be accessed by all members of your family\n"
+        "• /delete_recipes - Delete a recipe, or multiple recipes. It is possible to remove any recipe in a family, including the ones added by other members\n"
+        "• /delete_all_recipes - Delete all recipes in a family\n"
+        "• /search - Search recipes by title\n"
+        "• /all_recipes - Titles of all recipes in a family\n"
+        "• /all_recipes_in_category - A list of all recipes in the category\n"
+        "• /categories - Get names of all recipe categories your family created\n\n"
         "👨‍👩‍👦 Family-related commands:\n"
-        "• /my_family_id - get your family id\n"
-        "• /join_family <family_id> - join another family\n"
-        "• /leave_family - leave your current family(You dont need to\n"
+        "• /my_family_id - Get your family id. family_id is assigned automatically when you run your first command\n"
+        "• /join_family - join another user's family\n"
+        "• /leave_family - leave your current family (You dont need to\n"
         "do it if you want to join another family, just use /join_family.\n"
         "If you leave a family a new family_id will be assigned automatically)\n"
-        "• /what_is_family - explains what is a family and what's it for\n"
-        "• /family_members - get a list of all current members of your family\n\n"
-        "🍽 Recipes-related commands:\n"
-        "• /add_recipe - Step-by-step interactive recipe creation\n"
-        "• /delete_recipe - Step-by-step interactive recipe removal\n"
-        "• /delete_all_my_recipes - Deletes all your recipes\n"
-        "• /search <keyword> - Search recipes by title\n"
-        "• /all_recipes - Titles of all your recipes\n"
-        "• /list <category> - A list of all recipes in the category\n"
-        "• /categories - List all stored recipe categories\n\n"
-        "⚙️ All other commands:\n"
-        "• /generate_plan- Generate a random meal plan"     
+        "• /family_members - get a list of all current members of your family\n"
+        "• /what_is_family - Get all information about what is a family and what's it for\n\n"
+        "⚙️ Other commands:\n"
+        "• /generate_plan - Generate a meal plan. Requires total recipe count on line 1. Optionally add specific recipe titles on line 2, and category requirements (e.g., 2 Soup) on line 3."  
     )
     await update.message.reply_text(text)
 
@@ -256,15 +256,20 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
 
 #Two functions to delete all recipes added by user
 
-async def delete_my_recipes_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
+async def delete_recipes_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     await update.message.reply_text("⚠️Are you sure you want to delete ALL recipes you added? Y/N:")
     return 1
 
-async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
+async def delete_recipes_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     if user_text.lower() == "y":
         user_id = update.effective_user.id
-        number_of_deleted_recipes = database.delete_all_user_recipes(user_id)
+        username = update.effective_user.username or update.effective_user.first_name
+        family_id = database.get_user_family_id(user_id,username)
+        if family_id is None:
+            family_id = database.create_family(user_id,username)
+
+        number_of_deleted_recipes = database.delete_all_recipes(user_id,family_id)
         if number_of_deleted_recipes > 0:
             await update.message.reply_text(f"✅All {number_of_deleted_recipes} recipes deleted successfully!")
         else:
@@ -372,7 +377,7 @@ async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
 async def generate_plan_response(update:Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧑‍🍳To generate a plan, please provide the information in the following format:\n\n"
                                     "•How many recipes\n"
-                                    "•Names of the recipes that need to be included(e.g Pasta Carbonara, Cheese Soup)\n"
+                                    "•Names of the recipes that you want to be included(e.g Pasta Carbonara, Cheese Soup)\n"
                                     "•How much and of which category, recipes should be included(e.g 2 Soup, 1 Salad)\n\n"
                                     "/cancel to exit")
     return 1
@@ -449,7 +454,7 @@ def main():
     ))
 
     app.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("delete_recipe", delete_recipe_response)],
+        entry_points=[CommandHandler("delete_recipes", delete_recipe_response)],
         states={
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipe_action)]
         },
@@ -458,9 +463,9 @@ def main():
     ))
 
     app.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("delete_all_my_recipes", delete_my_recipes_response)],
+        entry_points=[CommandHandler("delete_all_recipes", delete_recipes_response)],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_my_recipes_action)]
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_recipes_action)]
         },
         fallbacks=[CommandHandler("cancel", cancel),
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_my_recipes_interupt)] 
@@ -478,7 +483,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("search", search))
     app.add_handler(CommandHandler("categories", categories))
-    app.add_handler(CommandHandler("list", list_recipes_in_category))
+    app.add_handler(CommandHandler("all_recipes_in_category", list_recipes_in_category))
     app.add_handler(CommandHandler("commands", get_all_commands))
     app.add_handler(CommandHandler("my_family_id", get_my_family_id))
     app.add_handler(CommandHandler("join_family", join_family))
