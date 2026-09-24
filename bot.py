@@ -1,6 +1,7 @@
 import database
 import logging
-from telegram import Update, BotCommand
+import re
+from telegram import Update, BotCommand, LinkPreviewOptions
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -153,7 +154,7 @@ async def get_family_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
 #A function to cancel multi-step action(Conversation)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Cancelled.")
+    await update.message.reply_text("🚫Cancelled.")
     return ConversationHandler.END
 
 #-----------------------------------------------
@@ -161,15 +162,20 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #Conversation interupters
 
 async def adding_conversation_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Please finnish adding the recipe first\n/cancel to exit")
+    await update.message.reply_text("⏳Please finnish adding the recipe first\n/cancel to exit")
     return 1
 
 async def deleting_conversation_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Please finnish deleting the recipe first\n/cancel to exit")
+    await update.message.reply_text("⏳Please finnish deleting the recipe first\n/cancel to exit")
     return 1
 
 async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Please finnish deleting all your recipes first\n/cancel to exit")
+    await update.message.reply_text("⏳Please finnish deleting all your recipes first\n/cancel to exit")
+    return 1
+
+async def generating_plan_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳Please finnish generating a plan first\n/cancel to exit")
+    return 1
 
 #-----------------------------------------------
 
@@ -177,11 +183,10 @@ async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEF
 
 async def add_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     bot_message = (
-        "To add a recipe please send it using the following format:\n"
-        "\n"
-        "Title\n"
-        "Recipe category (e.g Soup,Main,Salad etc.)\n"
-        "Instructions(Can be a link)\n\n"
+        "➕To add a recipe please send it using the following format:\n\n"
+        "•Title\n"
+        "•Recipe category (e.g Soup,Main,Salad etc.)\n"
+        "•Instructions(Can be a link)\n\n"
         "/cancel to exit" 
     )
     await update.message.reply_text(bot_message)
@@ -213,11 +218,10 @@ async def save_recipe(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def delete_recipe_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
     bot_message = (
-        "Please send titles of recipes/recipe you want to delete in the following format:\n"
-        "\n"
-        "Title 1\n"
-        "Title 2\n"
-        "etc.\n\n"
+        "🗑️Please send titles of recipes/recipe you want to delete in the following format:\n\n"
+        "•Title 1\n"
+        "•Title 2\n"
+        "•etc.\n\n"
         "/cancel to exit" 
     )
     await update.message.reply_text(bot_message)
@@ -253,7 +257,7 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
 #Two functions to delete all recipes added by user
 
 async def delete_my_recipes_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
-    await update.message.reply_text("Are you sure you want to delete ALL recipes added by you? Y/N:")
+    await update.message.reply_text("⚠️Are you sure you want to delete ALL recipes you added? Y/N:")
     return 1
 
 async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
@@ -267,7 +271,7 @@ async def delete_my_recipes_action(update:Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text("❌ERROR No recipes to delete")
         return ConversationHandler.END
     elif user_text.lower() == "n":
-        await update.message.reply_text("Cancelled successfully")
+        await update.message.reply_text("Cancelled.")
         return ConversationHandler.END
     else:
         await update.message.reply_text("❌ERROR Please respond with either Y to proceed with deletion\n or N to cancel!")
@@ -297,7 +301,7 @@ async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     answer = "\n\n" + "\n\n".join(formatted_reipes)
-    await update.message.reply_text(answer)
+    await update.message.reply_text(answer, link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 #-----------------------------------------------
 
@@ -323,7 +327,7 @@ async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_T
     ]
 
     answer = "\n\n" + "\n\n".join(formatted_reipes)
-    await update.message.reply_text(answer)
+    await update.message.reply_text(answer, link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 #-----------------------------------------------
 
@@ -359,20 +363,76 @@ async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
     results = database.get_all_categories(user_id,family_id)
     category_names=[cat for cat in results]
     formatted_results = "• " + "\n• ".join(category_names)
-    await update.message.reply_text(f"Here are all categories you've added: \n{formatted_results}")
+    await update.message.reply_text(f"📃Here are all categories you've added: \n\n{formatted_results}")
 
 #-----------------------------------------------
 
 #Functions to generate the meal plan
 
 async def generate_plan_response(update:Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("If you want some recipes included in the plan,\n or you want to have for example 2 soups in the plan\n"
-                                    "Please provide the information in the following format:\n"
-                                    "How many recipes\n"
-                                    "Names of the recipes that need to be included(e.g Pasta Carbonara, Cheese Soup)\n"
-                                    "How much and of which category, recipes should be included(e.g 2 Soup, 1 Salad)\n"
+    await update.message.reply_text("🧑‍🍳To generate a plan, please provide the information in the following format:\n\n"
+                                    "•How many recipes\n"
+                                    "•Names of the recipes that need to be included(e.g Pasta Carbonara, Cheese Soup)\n"
+                                    "•How much and of which category, recipes should be included(e.g 2 Soup, 1 Salad)\n\n"
                                     "/cancel to exit")
     return 1
+
+async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    lines = [line.strip() for line in user_text.split('\n') if line.strip()]
+
+    try:
+        total_count = int(lines[0])
+    except IndexError:
+        await update.message.reply_text("❌ERROR: Please provide at least how many recipes a plan should have, everything else is optional\n/cancel to exit")
+        return 1
+    except ValueError:
+        await update.message.reply_text("❌ERROR: Please provide a valid number of recipes(e.g 3, 5, 7)")
+
+    mandatory_titles = []
+    category_counts = {}
+
+    if len(lines) > 1:
+        mandatory_titles = [t.strip() for t in lines[1].split(',') if t.strip()]
+
+    if len(lines) > 2:
+        matches = re.findall(r'(\d+)\s+([a-zA-Z0-9\s]+)', lines[2]) #re is regex, it finds all matches for the blueprint (\d+) is 1 or more digits, () defines capturing group
+                                                                    #\s+ is for 1 or more spaces and ([a-zA-Z0-9\s]+) stands for a sequence of 1 or more characters where each is either a-z, A-Z or 0-9
+        for count_str, category_name in matches:
+            category_counts[category_name.strip().lower()] = int(count_str)
+
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id, username)
+    if family_id is None:
+        family_id = database.create_family(user_id, username)
+
+    mandatory_ids = database.get_recipe_ids_by_titles( user_id, family_id, mandatory_titles)
+
+    plan = database.get_custom_meal_plan(
+        user_id=user_id,
+        family_id=family_id,
+        mandatory_ids=mandatory_ids,
+        category_counts=category_counts,
+        total_count=total_count
+    )
+
+    if not plan:
+        await update.message.reply_text("❌ No recipes found in your database to create a plan.")
+        return ConversationHandler.END
+
+    reply_text = f"📋 Generated Meal Plan ({len(plan)} meals):\n"
+    for index, (r_id,title, category, instructions) in enumerate(plan, start=1):
+        reply_text += f"\n----------------------------------------\n{index}. {title} ({category})\n"
+        if instructions:
+            reply_text += f"\n{instructions}\n"
+        reply_text += "----------------------------------------\n"
+    
+
+    await update.message.reply_text(reply_text, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    return ConversationHandler.END
+    
+
 
 #-----------------------------------------------
 
@@ -404,6 +464,15 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel),
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_my_recipes_interupt)] 
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("generate_plan", generate_plan_response)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, generate_plan_action)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"), generating_plan_interupt)]
     ))
 
     app.add_handler(CommandHandler("start", start))

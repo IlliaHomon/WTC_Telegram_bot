@@ -166,6 +166,25 @@ def search_recipes_by_category(category: str, user_id: int, family_id: str):
     connection.close()  
     return matches
 
+def get_recipe_ids_by_titles(user_id: int, family_id: str, titles: list[str]):
+    if not titles:
+        return []
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    placeholders = ','.join('?' for _ in titles)
+    query = f'''
+        SELECT id FROM recipes 
+        WHERE LOWER(title) IN ({placeholders}) AND (user_id = ? OR family_id = ?)
+    '''
+
+    lower_titles = [t.lower().strip() for t in titles if t.strip()]
+    cursor.execute(query, lower_titles + [user_id,family_id])
+
+    ids = [row[0] for row in cursor.fetchall()]
+    connection.close()
+    return ids
+
 def get_all_categories(user_id: int, family_id: str) -> list[str]:
     conn = get_connection()
     cursor = conn.cursor()
