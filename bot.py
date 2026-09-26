@@ -104,22 +104,31 @@ async def get_my_family_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = "Your family id: " + family_id
     await update.message.reply_text(reply)
 
-async def join_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#Functions to join a family
+
+async def join_family_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👨‍👩‍👧‍👦Please provide the family id")
+    return 1
+
+async def join_family_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not context.args:
-        await update.message.reply_text("❌ERROR Please provide a family id, for example: /join_family A1A1A1")
-        return
-    family_id = " ".join(context.args).strip()
+    
+    family_id = update.message.text.strip()
     username = update.effective_user.username or update.effective_user.first_name
     current_family_id = database.get_user_family_id(user_id,username)
     if(current_family_id == family_id):
-        await update.message.reply_text("You are already a part of that family")
+        await update.message.reply_text(f"You are already a part of family {family_id}")
+        return ConversationHandler.END
     else:
         joined_successfully = database.assign_family_id(user_id, family_id, username)
         if joined_successfully:
-            await update.message.reply_text("✅Successfully joined!")
+            await update.message.reply_text(f"✅Successfully joined family {family_id}!")
+            return ConversationHandler.END
         else:
-            await update.message.reply_text("❌ERROR No family was found with such family id")
+            await update.message.reply_text("❌ERROR No family was found with such family id, try again")
+            return 1
+
+#-----------------------------------------------
 
 async def leave_family(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -143,13 +152,15 @@ async def get_family_members(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if family_id is None:
         family_id = database.create_family(user_id,username)
     all_usernames = database.get_all_usernames(family_id)
-    reply_text = "!Note WTC bot can only catch users username\nif they run a command\n\n👨‍👩‍👦Here is the list of all members of your family:\n\n"
+    reply_text = "⚠️Note WTC bot can only catch users username\nif they run a command\n\n👨‍👩‍👦Here is the list of all members of your family:\n\n"
     if all_usernames:
         for index,name in enumerate(all_usernames,start=1):
             reply_text += f"{index}. {name}\n"
     else: reply_text = "No members found."
 
     await update.message.reply_text(reply_text)
+
+#-----------------------------------------------
     
 #A function to cancel multi-step action(Conversation)
 
@@ -175,6 +186,18 @@ async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEF
 
 async def generating_plan_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳Please finnish generating a plan first\n/cancel to exit")
+    return 1
+
+async def search_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳Please finnish searching first\n/cancel to exit")
+    return 1
+
+async def all_recipes_in_category_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳Please finnish your current action first\n/cancel to exit")
+    return 1
+
+async def join_family_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⏳Please finnish joining family first\n/cancel to exit")
     return 1
 
 #-----------------------------------------------
@@ -284,55 +307,69 @@ async def delete_recipes_action(update:Update, context: ContextTypes.DEFAULT_TYP
 
 #-----------------------------------------------
 
-# Searching function
+# Search functions
 
-async def search(update:Update, context: ContextTypes.DEFAULT_TYPE):
+async def search_response(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🔍Please provide the search request(e.g Pasta Carbonara)\n/cancel to exit")
+    return 1
+
+async def search_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
     family_id = database.get_user_family_id(user_id,username)
     if family_id is None:
         family_id = database.create_family(user_id,username)
-    if not context.args:
-        await update.message.reply_text("❌ERROR Please provide a keyword, for example: /search pasta")
-        return
-    user_search = " ".join(context.args).strip()
+    
+    user_search = update.message.text
     results = database.search_recipes_by_title(user_search, user_id, family_id)
     if not results:
         await update.message.reply_text("❌ERROR No recipe found by that keyword")
-        return
+        return ConversationHandler.END
 
-    formatted_reipes=[
-        f"--------------------\n{title}\n{category}\n\n{instructions}\n--------------------" for title,category,instructions in results
-    ]
+    formatted_recipes = []
+    for title, category, instructions in results:
+        card = f"--------------------\n{title} ({category})"
+        if instructions and instructions.strip():
+            card += f"\n\n{instructions.strip()}"
+        card += "\n--------------------"
+        formatted_recipes.append(card)
 
-    answer = "\n\n" + "\n\n".join(formatted_reipes)
+    answer = "\n\n" + "\n\n".join(formatted_recipes)
     await update.message.reply_text(answer, link_preview_options=LinkPreviewOptions(is_disabled=True))
-
+    return ConversationHandler.END
 #-----------------------------------------------
 
-#A function to list all recipes in a category
+#Functions to list all recipes in a category
 
-async def list_recipes_in_category(update:Update, context:ContextTypes.DEFAULT_TYPE):
+async def all_recipes_in_category_response(update:Update, context:ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🧾Please provide the category")
+    return 1
+
+async def all_recipes_in_category_action(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
     family_id = database.get_user_family_id(user_id,username)
     if family_id is None:
         family_id = database.create_family(user_id,username)
-    if not context.args:
-        await update.message.reply_text("❌ERROR Please provide a category, for example: /list soup")
-        return
-    user_request = " ".join(context.args).strip()
+    
+    user_request = update.message.text.strip()
     results = database.search_recipes_by_category(user_request, user_id, family_id)
     if not results:
         await update.message.reply_text("❌ERROR No recipe found by that category")
-        return
+        return ConversationHandler.END
 
-    formatted_reipes=[
-        f"--------------------\n{title}\n{category}\n\n{instructions}\n--------------------" for title,category,instructions in results
-    ]
+    formatted_recipes = []
+    for title, category, instructions in results:
+        card = f"--------------------\n{title} ({category})"
+        if instructions and instructions.strip():
+            card += f"\n\n{instructions.strip()}"
+        card += "\n--------------------"
+        formatted_recipes.append(card)
 
-    answer = "\n\n" + "\n\n".join(formatted_reipes)
+    header = f"📃All recipes in the '{user_request}' category:\n\n"
+    answer = header + "\n\n".join(formatted_recipes)
     await update.message.reply_text(answer, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    return ConversationHandler.END
 
 #-----------------------------------------------
 
@@ -367,6 +404,10 @@ async def categories(update:Update, context: ContextTypes.DEFAULT_TYPE):
         family_id = database.create_family(user_id,username)
     results = database.get_all_categories(user_id,family_id)
     category_names=[cat for cat in results]
+
+    if not category_names:
+        await update.message.reply_text("❌ERROR No categories found. Add recipes with /add_recipe first!")
+        return
     formatted_results = "• " + "\n• ".join(category_names)
     await update.message.reply_text(f"📃Here are all categories you've added: \n\n{formatted_results}")
 
@@ -393,6 +434,7 @@ async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         return 1
     except ValueError:
         await update.message.reply_text("❌ERROR: Please provide a valid number of recipes(e.g 3, 5, 7)")
+        return 1
 
     mandatory_titles = []
     category_counts = {}
@@ -480,13 +522,37 @@ def main():
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"), generating_plan_interupt)]
     ))
 
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("search",search_response)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, search_action)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),search_interupt)] 
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("all_recipes_in_category", all_recipes_in_category_response)],
+        states = {
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, all_recipes_in_category_action)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),all_recipes_in_category_interupt)]
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("join_family", join_family_response)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, join_family_action)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),join_family_interupt)] 
+    ))
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("search", search))
     app.add_handler(CommandHandler("categories", categories))
-    app.add_handler(CommandHandler("all_recipes_in_category", list_recipes_in_category))
     app.add_handler(CommandHandler("commands", get_all_commands))
     app.add_handler(CommandHandler("my_family_id", get_my_family_id))
-    app.add_handler(CommandHandler("join_family", join_family))
     app.add_handler(CommandHandler("leave_family", leave_family))
     app.add_handler(CommandHandler("what_is_family", get_family_info))
     app.add_handler(CommandHandler("family_members", get_family_members))
