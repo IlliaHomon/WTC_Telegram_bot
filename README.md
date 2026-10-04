@@ -10,10 +10,10 @@ A Python Telegram bot deployed on a cloud Linux server to handle automated inter
 
 ## Tech Stack
 
-**Language**: Python 3
-**API / Library**: python-telegram-bot
-**Database**: SQLite / SQL
-**Hosting & DevOps**: Linux (Ubuntu), SSH, systemd, git
+- **Language**: Python 3
+- **API / Library**: python-telegram-bot
+- **Database**: SQLite / SQL
+- **Hosting & DevOps**: Linux (Ubuntu), SSH, systemd, git
 
 ## Project Architecture
 
