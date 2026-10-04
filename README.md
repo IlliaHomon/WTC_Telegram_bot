@@ -1,4 +1,4 @@
-#WTC Telegram Bot
+# WTC Telegram Bot
 A Python Telegram bot deployed on a cloud Linux server to handle automated interaction and data persistence. Built with production-ready architecture, featuring environment isolation, system service management for 24/7 uptime, and automated restart recovery.
 
 ## Overview & Key Highlights
