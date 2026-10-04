@@ -17,12 +17,14 @@ A Python Telegram bot deployed on a cloud Linux server to handle automated inter
 
 ## Project Architecture
 
+```text
 WTC_Telegram_bot/
 ├── .gitignore       # Prevents sensitive files (.env, venv/) from being tracked
 ├── bot.py           # Core bot handler and interaction logic
 ├── database.py      # Database interface and queries
 ├── requirements.txt # Project dependency specifications
 └── README.md        # Project overview
+```
 
 ## Key Takeaways & Learned Concepts
 
