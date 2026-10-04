@@ -1,21 +1,21 @@
 #WTC Telegram Bot
 A Python Telegram bot deployed on a cloud Linux server to handle automated interaction and data persistence. Built with production-ready architecture, featuring environment isolation, system service management for 24/7 uptime, and automated restart recovery.
 
-##Overview & Key Highlights
+## Overview & Key Highlights
 
 - **Production-Ready Deployment**: Configured as an active systemd service on a Linux VPS, ensuring continuous operation and automatic process recovery upon system reboots or unhandled exceptions.
 - **Secure Configuration Management**: Implemented environment-variable handling using .env pattern to separate secret bot tokens and sensitive data from the source code.
 - **Persistent Data Architecture**: Managed local data persistence using SQLite / modular Python database modules.
 - **Isolated Environment**: Built within an isolated Python Virtual Environment (venv) to ensure deterministic dependency control across development and production settings.
 
-##Tech Stack
+## Tech Stack
 
 **Language**: Python 3
 **API / Library**: python-telegram-bot
 **Database**: SQLite / SQL
 **Hosting & DevOps**: Linux (Ubuntu), SSH, systemd, git
 
-##Project Architecture
+## Project Architecture
 
 WTC_Telegram_bot/
 ├── .gitignore       # Prevents sensitive files (.env, venv/) from being tracked
@@ -24,7 +24,7 @@ WTC_Telegram_bot/
 ├── requirements.txt # Project dependency specifications
 └── README.md        # Project overview
 
-##Key Takeaways & Learned Concepts
+## Key Takeaways & Learned Concepts
 
 ### Software & Application Development
 - **Asynchronous Programming:** Utilized `async`/`await` patterns in Python to handle concurrent user interactions and messaging.
