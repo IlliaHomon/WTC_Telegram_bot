@@ -496,7 +496,7 @@ async def generate_plan_response(update:Update, context: ContextTypes.DEFAULT_TY
                                     "/cancel to exit")
     return 1
 
-async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE):
+async def generate_plan_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     lines = [line.strip() for line in user_text.split('\n') if line.strip()]
 
@@ -506,18 +506,23 @@ async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ERROR: Please provide at least how many recipes a plan should have, everything else is optional\n/cancel to exit")
         return 1
     except ValueError:
-        await update.message.reply_text("❌ERROR: Please provide a valid number of recipes(e.g 3, 5, 7)")
+        await update.message.reply_text("❌ERROR: Please provide a valid number of recipes (e.g., 3, 5, 7)")
         return 1
 
     mandatory_titles = []
     category_counts = {}
+    category_line = None
 
     if len(lines) > 1:
-        mandatory_titles = [t.strip() for t in lines[1].split(',') if t.strip()]
+        if len(lines) == 2 and re.search(r'\d+', lines[1]): #re is regex
+            category_line = lines[1]
+        else:
+            mandatory_titles = [t.strip() for t in lines[1].split(',') if t.strip()]
+            if len(lines) > 2:
+                category_line = lines[2]
 
-    if len(lines) > 2:
-        matches = re.findall(r'(\d+)\s+([\w\s]+)', lines[2]) #re is regex, it finds all matches for the blueprint (\d+) is 1 or more digits, () defines capturing group
-                                                                    #\s+ is for 1 or more spaces and ([a-zA-Z0-9\s]+) stands for a sequence of 1 or more characters where each is either a-z, A-Z or 0-9
+    if category_line:
+        matches = re.findall(r'(\d+)\s+([\w\s]+)', category_line)
         for count_str, category_name in matches:
             category_counts[category_name.strip().lower()] = int(count_str)
 
@@ -527,7 +532,7 @@ async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE
     if family_id is None:
         family_id = database.create_family(user_id, username)
 
-    mandatory_ids = database.get_recipe_ids_by_titles( user_id, family_id, mandatory_titles)
+    mandatory_ids = database.get_recipe_ids_by_titles(user_id, family_id, mandatory_titles)
 
     plan = database.get_custom_meal_plan(
         user_id=user_id,
@@ -542,12 +547,11 @@ async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
 
     reply_text = f"📋 Generated Meal Plan ({len(plan)} meals):\n"
-    for index, (r_id,title, category, instructions) in enumerate(plan, start=1):
+    for index, (r_id, title, category, instructions) in enumerate(plan, start=1):
         reply_text += f"\n----------------------------------------\n{index}. {title} ({category})\n"
         if instructions:
             reply_text += f"\n{instructions}\n"
         reply_text += "----------------------------------------\n"
-    
 
     await update.message.reply_text(reply_text, link_preview_options=LinkPreviewOptions(is_disabled=True))
     return ConversationHandler.END
