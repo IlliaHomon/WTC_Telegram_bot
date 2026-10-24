@@ -32,6 +32,7 @@ async def post_init(application:Application):
         BotCommand("add_recipe","Add a new recipe"),
         BotCommand("delete_recipes","Delete 1 or more recipes"),
         BotCommand("delete_all_recipes", "Delete all your recipes"), 
+        BotCommand("edit_recipe", "Edit an existing recipe"),
         BotCommand("search","Search recipes by keyword"),
         BotCommand("all_recipes","Titles of all your recipes"),
         BotCommand("all_recipes_in_category","List of recipes in a category"),
@@ -76,6 +77,7 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /add_recipe - Add a new recipe, Title on line 1 and Category on line 2 are mandatory, adding instructions on line 3 is optional. Recipes you add can be accessed by all members of your family\n"
         "• /delete_recipes - Delete a recipe, or multiple recipes. It is possible to remove any recipe in a family, including the ones added by other members\n"
         "• /delete_all_recipes - Delete all recipes in a family\n"
+        "• /edit_recipe - Edit an existing recipe\n"
         "• /search - Search recipes by title\n"
         "• /all_recipes - Titles of all recipes in a family\n"
         "• /all_recipes_in_category - A list of all recipes in the category\n"
@@ -184,6 +186,10 @@ async def deleting_my_recipes_interupt(update: Update, context: ContextTypes.DEF
     await update.message.reply_text("⏳Please finnish deleting all your recipes first\n/cancel to exit")
     return 1
 
+async def editing_recipe_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🚫Editing interupted, please start over")
+    return ConversationHandler.END
+
 async def generating_plan_interupt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳Please finnish generating a plan first\n/cancel to exit")
     return 1
@@ -275,6 +281,73 @@ async def delete_recipe_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(f"❌ERROR No recipe was given to delete, try again\n/cancel to exit")
         return 1
         
+#-----------------------------------------------
+
+#Functions to handle editing recipe
+
+async def edit_recipe_response(update:Update, context: ContextTypes.DEFAULT_TYPE)->int:
+    await update.message.reply_text("Please provide the name of the recipe you want to edit:")
+    return 1
+
+async def handle_recipe_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    title = update.message.text
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id,username)
+
+    recipes = database.get_recipes_by_title(title, user_id, family_id)
+
+    if not recipes:
+        await update.message.reply_text("No recipe found with that title. Operation canceled.")
+        return ConversationHandler.END
+
+    if len(recipes) > 1:
+        await update.message.reply_text("⚠️Multiple recipes with such title found\nthe recipe with lowest id will be chosen")
+
+    # Save selected recipe ID in user_data memory for the next state
+    selected_recipe = recipes[0]
+    context.user_data['editing_recipe_id'] = selected_recipe[0]
+
+    await update.message.reply_text(
+        f"Found '{selected_recipe[1]}'. What would you like to update?\n"
+        "Reply with 'title', 'category', or 'instructions'."
+    )
+    return 2
+
+async def handle_field_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = update.message.text.strip().lower()
+
+    if choice not in ['title', 'category', 'instructions']:
+        await update.message.reply_text(
+            "❌ Invalid choice. Please reply with either 'title', 'category', or 'instructions':"
+        )
+        return 2
+
+    context.user_data['editing_field'] = choice
+    await update.message.reply_text(f"Please send the new value for **{choice}**:")
+    return 3
+
+async def execute_recipe_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):   
+    recipe_id = context.user_data.get('editing_recipe_id')
+    field = context.user_data.get('editing_field')
+    new_value = update.message.text.strip()
+
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id, username)
+
+    kwargs = {field: new_value}
+    success = database.edit_recipe(recipe_id, user_id, family_id, **kwargs)
+
+    if success:
+        await update.message.reply_text(f"✅ Recipe {field} updated successfully!")
+    else:
+        await update.message.reply_text("❌ Failed to update recipe.")
+
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
 #-----------------------------------------------
 
 #Two functions to delete all recipes added by user
@@ -443,7 +516,7 @@ async def generate_plan_action(update:Update, context: ContextTypes.DEFAULT_TYPE
         mandatory_titles = [t.strip() for t in lines[1].split(',') if t.strip()]
 
     if len(lines) > 2:
-        matches = re.findall(r'(\d+)\s+([a-zA-Z0-9\s]+)', lines[2]) #re is regex, it finds all matches for the blueprint (\d+) is 1 or more digits, () defines capturing group
+        matches = re.findall(r'(\d+)\s+([\w\s]+)', lines[2]) #re is regex, it finds all matches for the blueprint (\d+) is 1 or more digits, () defines capturing group
                                                                     #\s+ is for 1 or more spaces and ([a-zA-Z0-9\s]+) stands for a sequence of 1 or more characters where each is either a-z, A-Z or 0-9
         for count_str, category_name in matches:
             category_counts[category_name.strip().lower()] = int(count_str)
@@ -511,6 +584,19 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel),
                    MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"),deleting_my_recipes_interupt)] 
+    ))
+
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("edit_recipe", edit_recipe_response)],
+        states={
+            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_recipe_selection)],
+            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_field_choice)],
+            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, execute_recipe_edit)],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            MessageHandler(filters.COMMAND & ~filters.Regex(r"^/cancel$"), editing_recipe_interupt)
+        ]
     ))
 
     app.add_handler(ConversationHandler(

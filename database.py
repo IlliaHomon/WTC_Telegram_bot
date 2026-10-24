@@ -4,9 +4,13 @@ import string
 
 DB_NAME = "recipes.db"
 
+def py_lower(text):
+    return text.lower() if text else text
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON;")
+    conn.create_function("LOWER", 1, py_lower)
     return conn
 
 def init_db():
@@ -143,6 +147,49 @@ def delete_all_recipes(user_id: int, family_id: str) -> int:
     conn.commit()
     conn.close()
     return deleted_count
+
+def get_recipes_by_title(title: str, user_id: int, family_id: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, title, category, instructions FROM recipes WHERE LOWER(title) = LOWER(?) AND (user_id = ? OR family_id = ?)",
+        (title.strip(), user_id, family_id)
+    )
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+def edit_recipe(recipe_id: int, user_id: int, family_id: str, 
+                        title: str = None, category: str = None, instructions: str = None) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    fields = []
+    params = []
+
+    if title is not None:
+        fields.append("title = ?")
+        params.append(title.strip())
+    if category is not None:
+        fields.append("category = ?")
+        params.append(category.strip())
+    if instructions is not None:
+        fields.append("instructions = ?")
+        params.append(instructions.strip())
+
+    if not fields:
+        conn.close()
+        return False
+
+    query = f"UPDATE recipes SET {', '.join(fields)} WHERE id = ? AND (user_id = ? OR family_id = ?)"
+    params.extend([recipe_id, user_id, family_id])
+
+    cursor.execute(query, params)
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
 
 def search_recipes_by_title(keyword: str, user_id: int, family_id: str):
     connection = get_connection()
