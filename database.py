@@ -1,6 +1,7 @@
 import sqlite3
 import secrets
 import string
+import json
 
 DB_NAME = "recipes.db"
 
@@ -32,6 +33,12 @@ def init_db():
                         title TEXT NOT NULL,
                         category TEXT NOT NULL,
                         instructions TEXT,
+                        FOREIGN KEY (family_id) REFERENCES families(family_id)
+                    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS current_meal_plans (
+                        family_id TEXT PRIMARY KEY,
+                        plan_data TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
                         FOREIGN KEY (family_id) REFERENCES families(family_id)
                     )''')
     
@@ -250,6 +257,42 @@ def get_all_recipes(user_id: int, family_id: str):
     recipe_titles = [row[0] for row in cursor.fetchall() if row[0]]
     conn.close()
     return recipe_titles
+
+#---------------------Functions related to meal plan---------------------
+
+def save_current_meal_plan(family_id: str, plan: list) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    plan_json = json.dumps([
+        {"id": r[0], "title": r[1], "category": r[2], "instructions": r[3]} 
+        for r in plan
+    ])
+
+    cursor.execute("""
+        INSERT INTO current_meal_plans (family_id, plan_data) 
+        VALUES (?, ?)
+        ON CONFLICT(family_id) DO UPDATE SET 
+            plan_data = excluded.plan_data,
+            created_at = datetime('now', 'localtime')
+    """, (family_id, plan_json))
+
+    conn.commit()
+    conn.close()
+    return True
+
+def get_current_meal_plan(family_id: str):
+    """Retrieves the active family meal plan."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT plan_data, created_at FROM current_meal_plans WHERE family_id = ?", (family_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return json.loads(row[0]), row[1]
+    return None, None
 
 
 def get_custom_meal_plan(user_id: int, family_id: str, mandatory_ids: list[int] = None,

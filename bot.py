@@ -30,14 +30,15 @@ async def post_init(application:Application):
     commands = [
         BotCommand("start","Start the bot"),
         BotCommand("add_recipe","Add a new recipe"),
-        BotCommand("delete_recipes","Delete 1 or more recipes"),
-        BotCommand("delete_all_recipes", "Delete all your recipes"), 
         BotCommand("edit_recipe", "Edit an existing recipe"),
+        BotCommand("generate_plan","Generate a new meal plan"),
         BotCommand("search","Search recipes by keyword"),
+        BotCommand("current_meal_plan","Get you current meal plan"),
         BotCommand("all_recipes","Titles of all your recipes"),
         BotCommand("all_recipes_in_category","List of recipes in a category"),
         BotCommand("categories","View all recipe categories you have added"),
-        BotCommand("generate_plan","Generate a new meal plan"),
+        BotCommand("delete_recipes","Delete 1 or more recipes"),
+        BotCommand("delete_all_recipes", "Delete all your recipes"), 
         BotCommand("cancel","Cancel current action"),
         BotCommand("my_family_id","Get your family id"),
         BotCommand("join_family","Join a family via family id"),
@@ -91,7 +92,8 @@ async def get_all_commands(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "• /family_members - get a list of all current members of your family\n"
         "• /what_is_family - Get all information about what is a family and what's it for\n\n"
         "⚙️ Other commands:\n"
-        "• /generate_plan - Generate a meal plan. Requires total recipe count on line 1. Optionally add specific recipe titles on line 2, and category requirements (e.g., 2 Soup) on line 3."  
+        "• /generate_plan - Generate a meal plan. Requires total recipe count on line 1. Optionally add specific recipe titles on line 2, and category requirements (e.g., 2 Soup) on line 3.\n"
+        "• /current_meal_plan - Get your family's current meal plan"
     )
     await update.message.reply_text(text)
 
@@ -546,6 +548,8 @@ async def generate_plan_action(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("❌ No recipes found in your database to create a plan.")
         return ConversationHandler.END
 
+    database.save_current_meal_plan(family_id, plan)
+
     reply_text = f"📋 Generated Meal Plan ({len(plan)} meals):\n"
     for index, (r_id, title, category, instructions) in enumerate(plan, start=1):
         reply_text += f"\n----------------------------------------\n{index}. {title} ({category})\n"
@@ -556,7 +560,32 @@ async def generate_plan_action(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(reply_text, link_preview_options=LinkPreviewOptions(is_disabled=True))
     return ConversationHandler.END
     
+#-----------------------------------------------
 
+#Function to get current meal plan
+
+async def get_current_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    family_id = database.get_user_family_id(user_id, username)
+
+    if family_id is None:
+        family_id = database.create_family(user_id, username)
+
+    plan, created_at = database.get_current_meal_plan(family_id)
+
+    if not plan:
+        await update.message.reply_text("❌ No meal plan has been generated for your family yet. Use /generate_plan to create one!")
+        return
+
+    reply_text = f"📋 Current Family Meal Plan (Generated: {created_at[:16]}):\n"
+    for index, item in enumerate(plan, start=1):
+        reply_text += f"\n----------------------------------------\n{index}. {item['title']} ({item['category']})\n"
+        if item.get('instructions'):
+            reply_text += f"\n{item['instructions']}\n"
+        reply_text += "----------------------------------------\n"
+
+    await update.message.reply_text(reply_text, link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 #-----------------------------------------------
 
@@ -647,6 +676,7 @@ def main():
     app.add_handler(CommandHandler("what_is_family", get_family_info))
     app.add_handler(CommandHandler("family_members", get_family_members))
     app.add_handler(CommandHandler("all_recipes", all_recipes))
+    app.add_handler(CommandHandler("current_meal_plan", get_current_plan))
 
     print("Bot is running...")
     app.run_polling()
