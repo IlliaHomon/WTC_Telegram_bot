@@ -289,7 +289,7 @@ def get_current_meal_plan(family_id: str):
     conn.close()
 
     if row:
-        return json.loads(row[0]), row[1]
+        return json.loads(row[0])
     return None, None
 
 
