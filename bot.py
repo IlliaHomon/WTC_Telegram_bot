@@ -572,13 +572,13 @@ async def get_current_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if family_id is None:
         family_id = database.create_family(user_id, username)
 
-    plan, created_at = database.get_current_meal_plan(family_id)
+    plan = database.get_current_meal_plan(family_id)
 
     if not plan:
         await update.message.reply_text("❌ No meal plan has been generated for your family yet. Use /generate_plan to create one!")
         return
 
-    reply_text = f"📋 Current Family Meal Plan (Generated: {created_at[:16]}):\n"
+    reply_text = f"📋 Current Family Meal Plan:\n"
     for index, item in enumerate(plan, start=1):
         reply_text += f"\n----------------------------------------\n{index}. {item['title']} ({item['category']})\n"
         if item.get('instructions'):

@@ -38,7 +38,6 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS current_meal_plans (
                         family_id TEXT PRIMARY KEY,
                         plan_data TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT (datetime('now', 'localtime')),
                         FOREIGN KEY (family_id) REFERENCES families(family_id)
                     )''')
     
@@ -273,8 +272,7 @@ def save_current_meal_plan(family_id: str, plan: list) -> bool:
         INSERT INTO current_meal_plans (family_id, plan_data) 
         VALUES (?, ?)
         ON CONFLICT(family_id) DO UPDATE SET 
-            plan_data = excluded.plan_data,
-            created_at = datetime('now', 'localtime')
+            plan_data = excluded.plan_data
     """, (family_id, plan_json))
 
     conn.commit()
@@ -286,7 +284,7 @@ def get_current_meal_plan(family_id: str):
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT plan_data, created_at FROM current_meal_plans WHERE family_id = ?", (family_id,))
+    cursor.execute("SELECT plan_data FROM current_meal_plans WHERE family_id = ?", (family_id,))
     row = cursor.fetchone()
     conn.close()
 
